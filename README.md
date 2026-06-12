@@ -2,15 +2,17 @@
 
 [![ci](https://github.com/trouties/bashback/actions/workflows/ci.yml/badge.svg)](https://github.com/trouties/bashback/actions/workflows/ci.yml)
 
-Your agent runs a cleanup script. The script deletes the wrong directory. You
-reach for `/rewind` — and the files don't come back, because agent checkpoints
-track the agent's *edits*, not what bash did.
+When a bash command destroys a file, a coding agent does the only thing it
+can: rebuild the file from conversation memory — thousands of tokens burned,
+and the result is often wrong. The exact bytes existed seconds earlier; they
+just weren't saved anywhere. `/rewind` doesn't bring them back either, because
+agent checkpoints track the agent's *edits*, not what bash did.
 
 bashback is **`/rewind` for bash**: it snapshots your working tree around every
 shell command your coding agent runs, giving you a command-level, auditable,
 undoable history of file side effects — `rm`, `mv`, `sed -i`, the codegen
-script that ran in the wrong directory, all of it. When a command clobbers a
-file, you type `bashback undo` instead of reconstructing it from memory.
+script that ran in the wrong directory, all of it. Instead of a from-memory
+rebuild, the pre-command bytes are one `bashback undo` away.
 
 One static binary. The only runtime dependency is `git >= 2.32`.
 
@@ -38,12 +40,11 @@ bashback undo           # revert the latest file-changing command
 
 ## Why bashback
 
-**One command instead of a rebuild.** When a command destroys a file, an agent
-without bashback does the only thing it can: reconstruct the file from
-conversation memory — burning thousands of tokens, and often getting it wrong.
-With bashback, the exact pre-command bytes are one `bashback undo` away, and
-the bundled [agent skill](#teaching-the-agent) teaches the agent to reach for
-it first instead of improvising.
+**One command instead of a rebuild.** The token savings take more than an
+undo command — the agent has to know to reach for it. bashback ships an
+[agent skill](#teaching-the-agent) that teaches the agent to try
+`bashback undo` before improvising, so a clobbered file costs one command
+instead of a long, unreliable from-memory rewrite.
 
 **Never in the way.** Hooks are **fail-open**: any internal error exits 0 and
 the agent keeps working — bashback can fail to protect, but it can never
