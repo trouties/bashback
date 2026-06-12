@@ -14,6 +14,8 @@ undoable history of file side effects — `rm`, `mv`, `sed -i`, the codegen
 script that ran in the wrong directory, all of it. Instead of a from-memory
 rebuild, the pre-command bytes are one `bashback undo` away.
 
+![a careless sed and rm, reviewed with bashback diff and reverted with bashback undo](https://raw.githubusercontent.com/trouties/bashback/assets/demo.gif)
+
 One static binary. The only runtime dependency is `git >= 2.32`.
 
 ## Quickstart

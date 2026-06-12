@@ -3,6 +3,7 @@
 *.out
 *.test
 .DS_Store
+scripts/demo/
 
 CLAUDE.md
 .claude/
