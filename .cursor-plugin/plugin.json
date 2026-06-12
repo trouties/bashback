@@ -1,0 +1,16 @@
+{
+  "name": "bashback",
+  "displayName": "bashback",
+  "description": "Undo for the shell commands your coding agent runs — snapshots the working tree around every command so file side effects (rm, mv, sed -i, ...) can be audited and restored.",
+  "version": "1.0.0",
+  "author": {
+    "name": "trouties"
+  },
+  "homepage": "https://github.com/trouties/bashback",
+  "repository": "https://github.com/trouties/bashback",
+  "license": "AGPL-3.0-or-later",
+  "keywords": ["undo", "snapshot", "checkpoint", "rewind", "shell", "agent", "git", "safety"],
+  "category": "Developer Tools",
+  "hooks": "./.cursor/hooks.json.example",
+  "rules": "./.cursor/rules/bashback.mdc"
+}

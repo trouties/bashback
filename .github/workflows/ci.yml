@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - name: git version
+        run: git --version
+      - name: build
+        run: go build ./...
+      - name: test
+        run: go test -race ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          check-latest: true
+      # Pinned and built from source with the runner's Go (prebuilt releases
+      # lag the toolchain and refuse a `go 1.26` module directive). The built
+      # binary is cached keyed on lint version × Go version, so cache hits
+      # skip the ~2.5 min build.
+      - name: cache golangci-lint
+        id: lint-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/go/bin/golangci-lint
+          key: golangci-lint-v2.12.2-go1.26-${{ runner.os }}
+      - name: build golangci-lint
+        if: steps.lint-cache.outputs.cache-hit != 'true'
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+      - name: golangci-lint
+        run: "$(go env GOPATH)/bin/golangci-lint run"
+
+  bench:
+    # Non-blocking perf telemetry: the 200ms hot-snapshot budget has never run
+    # on a macOS runner. Data every CI run; a breach triggers evaluation, not
+    # a red build.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - name: hot snapshot benchmark
+        run: go test -run '^$' -bench BenchmarkHotSnapshot10k -benchtime 5x ./internal/snapshot/
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

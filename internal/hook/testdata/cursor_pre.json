@@ -1,0 +1,1 @@
+{"session_id":"cv-1","conversation_id":"cv-1","cursor_version":"2026.06.11","generation_id":"g-1","hook_event_name":"preToolUse","tool_name":"Shell","tool_use_id":"cur-tuid-1","cwd":"","workspace_roots":["/tmp/p"],"tool_input":{"command":"rm -rf x","cwd":"","timeout":30000}}

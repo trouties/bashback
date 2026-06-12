@@ -1,0 +1,1 @@
+{"session_id":"cv-2","conversation_id":"cv-2","cursor_version":"2026.06.11","hook_event_name":"preToolUse","tool_name":"Shell","tool_use_id":"cur-tuid-2","cwd":"","workspace_roots":["/tmp/q"],"command":"git status","tool_input":{"command":"","cwd":""}}

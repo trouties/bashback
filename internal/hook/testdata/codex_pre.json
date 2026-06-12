@@ -1,0 +1,1 @@
+{"session_id":"cx-1","turn_id":"turn-1","model":"m","permission_mode":"default","cwd":"/tmp/p","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"call_1","tool_input":{"command":"rm -rf x"}}

@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "sh -c 'BB=\"${CLAUDE_PLUGIN_DATA}/bin/bashback\"; [ -x \"$BB\" ] || BB=bashback; \"$BB\" hook pre'", "timeout": 5 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "sh -c 'BB=\"${CLAUDE_PLUGIN_DATA}/bin/bashback\"; [ -x \"$BB\" ] || BB=bashback; \"$BB\" hook post'", "timeout": 5 } ] },
+      { "matcher": "TaskOutput|TaskStop|BashOutput|KillShell", "hooks": [ { "type": "command", "command": "sh -c 'BB=\"${CLAUDE_PLUGIN_DATA}/bin/bashback\"; [ -x \"$BB\" ] || BB=bashback; \"$BB\" hook bg'", "timeout": 5 } ] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "sh -c 'BB=\"${CLAUDE_PLUGIN_DATA}/bin/bashback\"; [ -x \"$BB\" ] || BB=bashback; \"$BB\" hook post'", "timeout": 5 } ] }
+    ],
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "sh -c '\"${CLAUDE_PLUGIN_ROOT}/hooks/bootstrap.sh\"'", "timeout": 30 }, { "type": "command", "command": "sh -c 'BB=\"${CLAUDE_PLUGIN_DATA}/bin/bashback\"; [ -x \"$BB\" ] || BB=bashback; \"$BB\" hook session-start'", "timeout": 5 } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "sh -c 'BB=\"${CLAUDE_PLUGIN_DATA}/bin/bashback\"; [ -x \"$BB\" ] || BB=bashback; \"$BB\" hook session-end'", "timeout": 5 } ] }
+    ]
+  }
+}

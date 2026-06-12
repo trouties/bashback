@@ -1,0 +1,1 @@
+{"session_id":"cl-1","cwd":"/tmp/p","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"tu-1","tool_input":{"command":"rm -rf x"}}

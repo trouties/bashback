@@ -1,0 +1,1 @@
+{"session_id":"cx-1","turn_id":"turn-1","cwd":"/tmp/p","hook_event_name":"PostToolUse","tool_name":"Bash","tool_use_id":"call_1","tool_response":"Exit code: 0\nSuccess."}

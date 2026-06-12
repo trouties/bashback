@@ -1,0 +1,130 @@
+---
+description: Use when a shell command unexpectedly changed or deleted files, when you need to find which command touched a file, or to roll files back to before some command — bashback snapshots every command's file side effects and can undo them.
+globs:
+alwaysApply: false
+---
+
+# bashback
+
+bashback keeps a content-level snapshot of the project's files before and after
+every shell command, so any command's file side effects can be reviewed and
+undone. Once installed it is always on — nothing to enable per command.
+
+**Core rule: prefer `bashback` to undo; never hand-reconstruct file contents.**
+When a command clobbers a file, do not rewrite it from memory or guess its
+prior contents — bashback holds the exact pre-command bytes. Reach for it
+first: one restore is cheaper and more reliable than any rebuild.
+
+## Safe workflow (follow in order)
+
+1. `bashback list --json -n 20` — find the entry; take the full `key` field.
+   (older entries: raise `-n` or drop it with `-n 0`.)
+2. `bashback diff <key>` — confirm what that command changed (pre..post).
+   For large changes (tens of files), start with `bashback diff <key> --stat`
+   and drill into specific paths.
+3. `bashback restore <key> --dry-run` — preview the restore plan.
+4. `bashback restore <key>` — undo that command's file side effects.
+
+Every restore first snapshots the current tree, so a restore is itself
+undoable with `bashback undo` — a wrong restore never loses work.
+
+If you know the affected path but not the command, start from
+`bashback log <path> --json` instead and pick the entry from there.
+
+## Addressing entries
+
+- **Full key** (the command's tool_use_id) — what `--json` carries; always safe.
+- **Unique prefix**, minimum 4 chars — accepted wherever a key is.
+- **`@N`** — positional: `@1` is the newest entry, `@2` the one before, …
+- **`bgfinal_<key>`** — a background command's final-state entry.
+
+When scripting or parsing output, always pass `--json` and key off the full
+key string, never a truncated display form.
+
+## Command reference (agent defaults)
+
+Inspect:
+- `bashback list --json` — entries for this project: key, session_id, index,
+  overlapped, pre_only, background, file counts. Filters: `--session <prefix>`,
+  `--grep <substr>`, `-n <N>`, `--since 2h`, `--by-session`.
+- `bashback diff <key> [--stat] [--json]` — one command's changes;
+  `diff <k1> <k2>` compares two entries of the same session.
+- `bashback log <path> --json` — commands that touched a path, newest first.
+- `bashback show <key> --json` — full detail, including the per-file list.
+- `bashback stats --json` / `bashback doctor --json` — usage and self-check.
+
+Act:
+- `bashback restore <key> [path/...] [--dry-run] [--3way]` — undo one command,
+  optionally limited to paths. `--3way` keeps edits made after the snapshot;
+  conflicts surface as merge markers, never a silent overwrite.
+- `bashback undo [--session <prefix>] [--dry-run] [--3way]` — undo the most
+  recent file-changing command.
+- `bashback rewind <key> [--dry-run]` — whole tree back to that command's pre
+  state: undoes it **and everything after it**. Confirm intent first.
+- `bashback snap [-m note]` — manual anchor snapshot before a risky operation.
+- `bashback export <key> [--out f]` — entry as a binary-safe git-apply patch.
+
+Human-only (requires a terminal; refuses otherwise):
+- `bashback restore <key> -p` — interactive hunk picking. As an agent, narrow
+  with path arguments instead, or `export` the patch and process it yourself.
+
+## Platform notes
+
+Behavior differs slightly per agent platform:
+
+- **Claude Code** — full coverage: failed commands still get complete entries
+  (PostToolUseFailure), background commands get a `bgfinal_<key>` entry.
+- **Codex** — Bash commands only; `apply_patch` edits are NOT protected.
+  Entry keys look like `call_*`. Failed commands are covered (PostToolUse
+  fires on failure). Session end maps to Stop; there is no background capture.
+- **Cursor** — a failed command leaves a `pre_only` entry (postToolUse does
+  not fire on failure), so undoing it needs `--force` — explain the risk
+  first. There is no `bgfinal_` capture. Keys are native tool_use_ids.
+
+## Multi-session
+
+Concurrent sessions on one project are recorded separately. If `bashback undo`
+refuses because several sessions were recently active, scope it with
+`bashback undo --session <prefix>`. Your own session id is in the SessionStart
+note bashback injected (`session <prefix>`); that prefix is a valid `--session`
+value. Without it, run `bashback list --session <id> --json` for each id the
+gate listed and match recent commands against what you actually ran.
+
+## Errors → next step
+
+- `no entry with key …` — re-run `bashback list --json`; the key may be stale
+  or truncated.
+- ambiguous prefix — use a longer prefix or the full key.
+- snapshots reclaimed (GC) — the data is gone; say so plainly, do not
+  improvise a recovery.
+- pre-only / `overlapped` entry — restore demands `--force`. **Never add
+  `--force` on your own.** An overlapped entry's snapshot may carry a
+  concurrent command's partial work, so restoring can undo that command too;
+  a pre-only entry means the command was interrupted mid-flight. Explain the
+  risk, narrow with path filters, and let the user decide.
+- target changed since snapshot — the tree moved on after that command; use
+  `--3way` to keep the later edits, or restore specific paths only.
+
+## Background commands
+
+A backgrounded command gets a second snapshot when it finishes, recorded as
+`bgfinal_<key>`. Review with `bashback diff bgfinal_<key>`, undo with
+`bashback restore bgfinal_<key>`. These entries appear in `list --json` with
+the `bgfinal_` key prefix.
+
+## Boundaries — do not over-promise
+
+bashback covers **file side effects inside the project's cwd**, nothing more.
+It does not cover or restore:
+
+- paths outside cwd, network/DB effects, `git push`, process or env state;
+- nested git repos / submodules — contents are never snapshotted; restoring a
+  deleted nested repo yields only an empty directory;
+- empty directories, mtime/owner, permission bits beyond the exec bit, special
+  files (FIFO/device/socket);
+- files ignored by `.gitignore`, **including `.env`** — unrecoverable unless
+  opted in via `force_include`;
+- files over the size cap (default 100 MiB), skipped and flagged.
+
+When bashback cannot help — a path outside cwd, a gitignored file, a file over
+the cap — say so plainly rather than implying a recovery it cannot make.

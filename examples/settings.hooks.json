@@ -1,0 +1,21 @@
+{
+  "_comment": "bashback hooks. Merge the hooks block into .claude/settings.json (project) or ~/.claude/settings.json (user). Replace /abs/path/to/bashback with the absolute path to the built binary. The Bash matcher scopes tool hooks to bash calls; the TaskOutput/TaskStop matcher captures a backgrounded command's final state when the agent reads or kills it.",
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "/abs/path/to/bashback hook pre", "timeout": 5 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "/abs/path/to/bashback hook post", "timeout": 5 } ] },
+      { "matcher": "TaskOutput|TaskStop|BashOutput|KillShell", "hooks": [ { "type": "command", "command": "/abs/path/to/bashback hook bg", "timeout": 5 } ] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "/abs/path/to/bashback hook post", "timeout": 5 } ] }
+    ],
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "/abs/path/to/bashback hook session-start", "timeout": 5 } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "/abs/path/to/bashback hook session-end", "timeout": 5 } ] }
+    ]
+  }
+}

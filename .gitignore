@@ -1,0 +1,10 @@
+/bashback
+/dist/
+*.out
+*.test
+.DS_Store
+
+CLAUDE.md
+.claude/
+plans/
+docs/

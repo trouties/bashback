@@ -1,0 +1,10 @@
+{
+  "_comment": "Example Cursor hooks wiring for bashback. 'bashback' must be on PATH, or replace each command with an absolute path to the binary. Running 'bashback install --cursor' writes this file automatically with the resolved absolute path.",
+  "version": 1,
+  "hooks": {
+    "preToolUse":   [ { "matcher": "Shell", "command": "bashback hook pre" } ],
+    "postToolUse":  [ { "matcher": "Shell", "command": "bashback hook post" } ],
+    "sessionStart": [ { "command": "bashback hook session-start" } ],
+    "sessionEnd":   [ { "command": "bashback hook session-end" } ]
+  }
+}
