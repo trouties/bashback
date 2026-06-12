@@ -6,6 +6,12 @@ All notable changes to bashback are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-12
+
+### Fixed
+
+- CLI bug fixes: newest-first JSON output, plugin-aware `doctor`, shipped `bin` shim.
+
 ## [1.0.0] - 2026-06-12
 
 Initial public release.
@@ -45,5 +51,6 @@ Initial public release.
   one-shot `install.sh` (version-pinnable) wiring a chosen platform, and
   plugin panels (`.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`).
 
-[Unreleased]: https://github.com/trouties/bashback/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/trouties/bashback/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/trouties/bashback/releases/tag/v1.0.1
 [1.0.0]: https://github.com/trouties/bashback/releases/tag/v1.0.0

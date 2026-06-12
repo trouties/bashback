@@ -2,7 +2,7 @@
   "name": "bashback",
   "displayName": "bashback",
   "description": "Undo for the shell commands your coding agent runs — snapshots the working tree around every command so file side effects (rm, mv, sed -i, ...) can be audited and restored.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "icon": "./logo.svg",
   "author": {
     "name": "trouties"
