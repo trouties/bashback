@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/trouties/bashback/internal/journal"
+	"github.com/trouties/bashback/skills"
 )
 
 // isolateHome points os.UserHomeDir() at a fresh temp dir so doctor's wiring
@@ -347,5 +349,38 @@ func TestDoctorRepairQuarantinesBadJournalLine(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Fatalf("entries = %d, want 1", len(entries))
+	}
+}
+
+func TestDoctorPluginJSONConsistent(t *testing.T) {
+	f := newFix(t)
+	isolateHome(t)
+	home := os.Getenv("HOME")
+	dir := filepath.Join(home, ".claude", "plugins", "cache", "claude-plugins", "bashback", "1.0.0")
+	mkdirWrite(t, filepath.Join(dir, "skills", "bashback", "SKILL.md"), string(skills.BashbackSKILL))
+
+	var out, errb bytes.Buffer
+	if code := Doctor(f.layout, f.work, []string{"--json"}, &out, &errb); code != 0 {
+		t.Fatalf("doctor --json exit %d: %s", code, errb.String())
+	}
+	var got struct {
+		Wiring []struct {
+			Platform string `json:"platform"`
+			Status   string `json:"status"`
+		} `json:"wiring"`
+		Skill struct {
+			Status string `json:"status"`
+		} `json:"skill"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("unparsable: %v\n%s", err, out.String())
+	}
+	for _, w := range got.Wiring {
+		if w.Platform == "claude" && w.Status == "missing" {
+			t.Fatalf("claude wiring must not be 'missing' under a plugin install: %+v", got.Wiring)
+		}
+	}
+	if got.Skill.Status != "ok" {
+		t.Fatalf("plugin-shipped skill should report ok, got %q", got.Skill.Status)
 	}
 }

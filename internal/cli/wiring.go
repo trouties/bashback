@@ -16,7 +16,7 @@ import (
 type wiringStatus struct {
 	Event    string `json:"hook"`
 	Matcher  string `json:"matcher"`
-	Status   string `json:"status"` // ok | missing | stale path | unreadable | not wired
+	Status   string `json:"status"` // ok | missing | stale path | unreadable | not wired | wired via plugin
 	Command  string `json:"command,omitempty"`
 	Platform string `json:"platform"`
 	File     string `json:"-"`
@@ -308,19 +308,19 @@ func isExecutableFile(path string) bool {
 	return !fi.IsDir() && fi.Mode().Perm()&0o111 != 0
 }
 
-// claudePluginInstalled reports whether a bashback plugin directory exists under
-// home's claude plugin tree. Hooks shipped by the plugin live in the plugin's
-// own hooks.json, invisible to the settings scan, so doctor must not report
-// them as missing.
-func claudePluginInstalled(home string) bool {
+// claudePluginDir returns the bashback plugin directory under home's claude
+// plugin tree, or "" if none. Hooks and the skill shipped by the plugin live in
+// the plugin's own tree, invisible to the settings scan, so doctor must not
+// report them as missing.
+func claudePluginDir(home string) string {
 	root := filepath.Join(home, ".claude", "plugins")
-	found := false
+	found := ""
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil || !d.IsDir() {
 			return nil
 		}
 		if strings.EqualFold(d.Name(), "bashback") {
-			found = true
+			found = p
 			return filepath.SkipAll
 		}
 		// keep the walk shallow: plugins/<x>/<y>/bashback is the deepest shape
@@ -330,4 +330,9 @@ func claudePluginInstalled(home string) bool {
 		return nil
 	})
 	return found
+}
+
+// claudePluginInstalled reports whether a bashback plugin directory exists.
+func claudePluginInstalled(home string) bool {
+	return claudePluginDir(home) != ""
 }

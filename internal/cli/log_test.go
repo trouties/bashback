@@ -306,3 +306,24 @@ func TestLogJSONCarriesOrigin(t *testing.T) {
 		t.Errorf("log --json missing origin: %s", out.String())
 	}
 }
+
+// log --json is newest-first: the latest touch is entries[0].
+func TestLogJSONNewestFirst(t *testing.T) {
+	f := newFix(t)
+	f.write(t, "f.txt", "0")
+	f.capture(t, "tool_l1", "first", func() { f.write(t, "f.txt", "1") })
+	f.capture(t, "tool_l2", "second", func() { f.write(t, "f.txt", "2") })
+
+	var out, errb bytes.Buffer
+	if code := Log(f.layout, f.work, []string{"--json", "f.txt"}, &out, &errb); code != 0 {
+		t.Fatal(errb.String())
+	}
+	m := decodeJSON(t, out.Bytes())
+	entries, _ := m["entries"].([]any)
+	if len(entries) != 2 {
+		t.Fatalf("want 2 entries, got %v", m["entries"])
+	}
+	if entries[0].(map[string]any)["key"] != "tool_l2" {
+		t.Fatalf("entries[0] should be newest tool_l2, got %v", entries[0])
+	}
+}

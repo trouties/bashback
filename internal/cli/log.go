@@ -111,8 +111,11 @@ func Log(layout paths.Layout, workdir string, args []string, stdout, stderr io.W
 	}
 
 	if *jsonOut {
+		// Newest-first, so a parsing agent reads the latest touch at entries[0]
+		// (matching @1). The text view below stays in file order (old->new).
 		out := logJSON{V: outputVersion, Path: path, Entries: make([]logEntryJSON, 0, len(rows)), OlderWithoutData: olderWithoutData}
-		for _, r := range rows {
+		for i := len(rows) - 1; i >= 0; i-- {
+			r := rows[i]
 			key := journal.DefaultKeyer.Key(r.e)
 			out.Entries = append(out.Entries, logEntryJSON{
 				Key: key, Index: atN[key], TS: r.e.TS, Change: r.change, Origin: r.e.Origin, Command: r.e.Command, BgOf: bgOf(key),

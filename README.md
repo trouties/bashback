@@ -202,11 +202,14 @@ path is expected to work but is not yet machine-verified.
 
 ### Verify and uninstall
 
-`bashback doctor` checks git/permissions/config, whether your platform's hooks
-are actually wired and the binary path resolves, and recent snapshot activity.
-To uninstall, remove bashback's entries from the platform's hook config by
-hand, delete the installed skill/rule, then `rm -rf ~/.bashback` (this also
-deletes the journal — the audit history, not just disk).
+`bashback doctor` checks git/permissions/config, hook wiring, the binary path,
+and recent activity.
+
+Uninstall: plugin — `/plugin uninstall bashback` (removes the data dir
+`~/.claude/plugins/data/bashback-bashback` on the last scope); manual — drop
+bashback's hook entries and the skill/rule by hand. Either way the journal and
+snapshots are in `~/.bashback`: `rm -rf ~/.bashback` to reclaim it (this also
+deletes the audit history).
 
 ## Usage
 

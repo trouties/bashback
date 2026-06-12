@@ -104,8 +104,12 @@ func List(layout paths.Layout, workdir string, args []string, stdout, stderr io.
 
 	rec := newReclaimedMemo(layout, workdir)
 	if *jsonOut {
+		// JSON is emitted newest-first so a parsing agent finds the latest command
+		// at entries[0] (matching @1). The text view below keeps file order
+		// (old->new) so the newest row sits nearest the prompt.
 		out := listJSON{V: outputVersion, ProtectPaths: protect, Entries: make([]listEntryJSON, 0, len(filtered))}
-		for _, e := range filtered {
+		for i := len(filtered) - 1; i >= 0; i-- {
+			e := filtered[i]
 			key := journal.DefaultKeyer.Key(e)
 			out.Entries = append(out.Entries, listEntryJSON{
 				Key:          key,

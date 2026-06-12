@@ -76,5 +76,36 @@ func skillStatus(workdir, home string) (status, path string) {
 		}
 		return "stale", p
 	}
+	if p := pluginSkillPath(home); p != "" {
+		b, err := os.ReadFile(p)
+		if err == nil && bytes.Equal(b, skills.BashbackSKILL) {
+			return "ok", p
+		}
+		if err == nil {
+			return "stale", p
+		}
+	}
 	return "missing", ""
+}
+
+func pluginSkillPath(home string) string {
+	dir := claudePluginDir(home)
+	if dir == "" {
+		return ""
+	}
+	rel := filepath.Join("skills", "bashback", "SKILL.md")
+	cands := []string{filepath.Join(dir, rel)}
+	if ents, err := os.ReadDir(dir); err == nil {
+		for _, e := range ents {
+			if e.IsDir() {
+				cands = append(cands, filepath.Join(dir, e.Name(), rel))
+			}
+		}
+	}
+	for _, p := range cands {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p
+		}
+	}
+	return ""
 }

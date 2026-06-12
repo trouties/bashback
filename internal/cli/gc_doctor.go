@@ -246,10 +246,6 @@ func Doctor(layout paths.Layout, workdir string, args []string, stdout, stderr i
 	claudeWiring := checkWiring(workdir, home, exe)
 	codexWiring := checkCodexWiring(workdir, home, exe)
 	cursorWiring := checkCursorWiring(workdir, home, exe)
-	// Claude is the default platform: collapse a wholly-absent Claude wiring to one
-	// informational line when another platform is wired, but still fail on a
-	// partially wired, stale, or unreadable Claude setup (real breakage, not an
-	// opt-out). This keeps Claude symmetric with the codex/cursor collapse rule.
 	otherWired := anyWired(codexWiring) || anyWired(cursorWiring)
 	claudeFound := 0
 	claudeUnreadable := false
@@ -263,6 +259,9 @@ func Doctor(layout paths.Layout, workdir string, args []string, stdout, stderr i
 	}
 	if claudeFound == 0 && !claudeUnreadable && claudePluginInstalled(home) {
 		line(true, "claude: wired via plugin")
+		for i := range claudeWiring {
+			claudeWiring[i].Status = "wired via plugin"
+		}
 	} else if claudeFound == 0 && !claudeUnreadable && otherWired {
 		line(true, "claude: not wired (another platform is wired)")
 	} else {

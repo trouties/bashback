@@ -272,3 +272,27 @@ func TestDiffNoEntryGuidesToList(t *testing.T) {
 		t.Fatalf("no-entry error should point at list: %q", errb.String())
 	}
 }
+
+func TestListJSONNewestFirst(t *testing.T) {
+	f := newFix(t)
+	f.write(t, "a.txt", "0")
+	f.capture(t, "tool_old", "echo old", func() { f.write(t, "a.txt", "1") })
+	f.capture(t, "tool_new", "echo new", func() { f.write(t, "a.txt", "2") })
+
+	var out, errb bytes.Buffer
+	if code := List(f.layout, f.work, []string{"--json"}, &out, &errb); code != 0 {
+		t.Fatalf("list --json exit %d: %s", code, errb.String())
+	}
+	m := decodeJSON(t, out.Bytes())
+	entries, _ := m["entries"].([]any)
+	if len(entries) != 2 {
+		t.Fatalf("want 2 entries, got %v", m["entries"])
+	}
+	e0 := entries[0].(map[string]any)
+	if e0["key"] != "tool_new" {
+		t.Fatalf("entries[0] should be newest tool_new, got %v", e0["key"])
+	}
+	if e0["index"].(float64) != 1 {
+		t.Fatalf("newest entry index should be 1 (=@1), got %v", e0["index"])
+	}
+}

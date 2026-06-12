@@ -1,0 +1,17 @@
+#!/bin/sh
+# Shipped on the agent's PATH via ${CLAUDE_PLUGIN_ROOT}/bin. As tracked plugin
+# content it is removed cleanly on uninstall; nothing is written to the plugin
+# root at runtime. Bare `bashback ...` from the skill lands here and is execed
+# to the bootstrapped binary in the plugin data dir. CLAUDE_PLUGIN_DATA is not
+# set in agent Bash, so self-locate by ascending to the plugins/ root.
+[ -n "${CLAUDE_PLUGIN_DATA:-}" ] && [ -x "${CLAUDE_PLUGIN_DATA}/bin/bashback" ] &&
+  exec "${CLAUDE_PLUGIN_DATA}/bin/bashback" "$@"
+d=$(dirname "$0")
+while [ "$d" != "/" ] && [ "$d" != "." ]; do
+  if [ -x "$d/data/bashback-bashback/bin/bashback" ]; then
+    exec "$d/data/bashback-bashback/bin/bashback" "$@"
+  fi
+  d=$(dirname "$d")
+done
+echo "bashback: binary not bootstrapped yet; restart the session" >&2
+exit 1

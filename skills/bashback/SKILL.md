@@ -9,6 +9,11 @@ bashback keeps a content-level snapshot of the project's files before and after
 every shell command, so any command's file side effects can be reviewed and
 undone. Once installed it is always on — nothing to enable per command.
 
+By default (`context_feedback: major`) a PostToolUse hint is injected only for
+large or destructive changes (>= 10 files, or any deletion); smaller edits are
+snapshotted silently. **No hint never means no snapshot** — run `bashback list`
+to check. `all` hints on every change; `off` suppresses hints.
+
 **Core rule: prefer `bashback` to undo; never hand-reconstruct file contents.**
 When a command clobbers a file, do not rewrite it from memory or guess its
 prior contents — bashback holds the exact pre-command bytes. Reach for it
@@ -33,12 +38,16 @@ If you know the affected path but not the command, start from
 ## Addressing entries
 
 - **Full key** (the command's tool_use_id) — what `--json` carries; always safe.
-- **Unique prefix**, minimum 4 chars — accepted wherever a key is.
+- **Unique prefix** — accepted wherever a key is. Keys share a common leading
+  segment (Claude keys all start `toolu_`), so a usable prefix runs well past the
+  4-char floor; an ambiguous one is rejected — lengthen it or use the full key.
 - **`@N`** — positional: `@1` is the newest entry, `@2` the one before, …
 - **`bgfinal_<key>`** — a background command's final-state entry.
 
 When scripting or parsing output, always pass `--json` and key off the full
-key string, never a truncated display form.
+key string, never a truncated display form. `--json` arrays are newest-first
+(`entries[0]` = latest, matching `@1`). `index` equals `@N`: a relative position
+that slides as new commands land — for a durable reference keep `key`.
 
 ## Command reference (agent defaults)
 
@@ -124,6 +133,11 @@ It does not cover or restore:
 - files ignored by `.gitignore`, **including `.env`** — unrecoverable unless
   opted in via `force_include`;
 - files over the size cap (default 100 MiB), skipped and flagged.
+
+If `protect_paths` is set, coverage is the inverse of `force_include`: only
+files under the listed roots are snapshotted and everything else is unprotected
+(`list` prints "sparse protection active"). `force_include` opts a gitignored
+path back in; the size cap (default 100 MiB) skips oversized files.
 
 When bashback cannot help — a path outside cwd, a gitignored file, a file over
 the cap — say so plainly rather than implying a recovery it cannot make.

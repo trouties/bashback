@@ -22,6 +22,11 @@ log() {
     >>"${DATA}/bootstrap.log"; } 2>/dev/null || true
 }
 
+# The skill's bare `bashback ...` commands resolve through the shipped
+# bin/bashback shim on ${CLAUDE_PLUGIN_ROOT}/bin (tracked plugin content); this
+# bootstrap only fetches the real binary into the data dir and never writes to
+# the plugin root.
+
 # Without a data dir there is nowhere stable to put the binary; fall back to
 # whatever PATH provides and leave the session untouched.
 [ -n "$DATA" ] || { log "no CLAUDE_PLUGIN_DATA; skip"; exit 0; }
