@@ -140,7 +140,7 @@ func TestDiffPatchOverLimitFallsBackToStat(t *testing.T) {
 	f.write(t, "f.txt", "seed")
 	var sb strings.Builder
 	for i := 0; i < 2000; i++ {
-		sb.WriteString(fmt.Sprintf("line %d with some padding content here\n", i))
+		fmt.Fprintf(&sb, "line %d with some padding content here\n", i)
 	}
 	key := f.capture(t, "tool_big", "generate", func() { f.write(t, "f.txt", sb.String()) })
 

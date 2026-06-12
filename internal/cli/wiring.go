@@ -259,7 +259,7 @@ func checkCursorWiring(workdir, home, selfExe string) []wiringStatus {
 		}
 		for event, arr := range hooks {
 			for _, ent := range arr {
-				merged[event] = append(merged[event], wiringEntry{Matcher: ent.Matcher, Command: ent.Command})
+				merged[event] = append(merged[event], wiringEntry(ent))
 			}
 		}
 	}

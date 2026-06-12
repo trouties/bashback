@@ -21,7 +21,7 @@ func TestUndoOverlappedGuidanceMatchesRestoreLadder(t *testing.T) {
 			t.Errorf("overlapped guidance missing %q: %s", want, s)
 		}
 	}
-	if !(strings.Index(s, "diff") < strings.Index(s, "<path>") && strings.Index(s, "<path>") < strings.Index(s, "--force")) {
+	if strings.Index(s, "diff") >= strings.Index(s, "<path>") || strings.Index(s, "<path>") >= strings.Index(s, "--force") {
 		t.Errorf("guidance not in review->narrow->force order: %s", s)
 	}
 }
