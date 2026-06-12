@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/trouties/bashback/skills"
 )
@@ -93,19 +94,21 @@ func pluginSkillPath(home string) string {
 	if dir == "" {
 		return ""
 	}
-	rel := filepath.Join("skills", "bashback", "SKILL.md")
-	cands := []string{filepath.Join(dir, rel)}
-	if ents, err := os.ReadDir(dir); err == nil {
-		for _, e := range ents {
-			if e.IsDir() {
-				cands = append(cands, filepath.Join(dir, e.Name(), rel))
-			}
+	// A marketplace install nests the skill beneath a versioned directory
+	// (cache/<marketplace>/bashback/<version>/skills/bashback/SKILL.md), so the
+	// depth is not fixed; walk the plugin tree and match the skill suffix instead
+	// of guessing how many levels down it sits.
+	suffix := string(os.PathSeparator) + filepath.Join("skills", "bashback", "SKILL.md")
+	found := ""
+	_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil || found != "" {
+			return nil
 		}
-	}
-	for _, p := range cands {
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
-			return p
+		if !d.IsDir() && strings.HasSuffix(p, suffix) {
+			found = p
+			return filepath.SkipAll
 		}
-	}
-	return ""
+		return nil
+	})
+	return found
 }

@@ -46,6 +46,19 @@ func TestSkillStatusFindsUserLevel(t *testing.T) {
 	}
 }
 
+func TestSkillStatusFindsVersionedPlugin(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home")
+	work := t.TempDir()
+	// Marketplace installs nest the skill beneath a versioned directory:
+	// plugins/cache/<marketplace>/bashback/<version>/skills/bashback/SKILL.md.
+	dest := filepath.Join(home, ".claude", "plugins", "cache", "bashback", "bashback", "1.0.1", "skills", "bashback", "SKILL.md")
+	mkdirWrite(t, dest, string(skills.BashbackSKILL))
+	st, p := skillStatus(work, home)
+	if st != "ok" || p != dest {
+		t.Fatalf("want ok at versioned plugin path %s, got %s %s", dest, st, p)
+	}
+}
+
 func TestDoctorReportsSkill(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", home)
