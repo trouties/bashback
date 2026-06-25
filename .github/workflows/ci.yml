@@ -42,7 +42,7 @@ jobs:
       # skip the ~2.5 min build.
       - name: cache golangci-lint
         id: lint-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/go/bin/golangci-lint
           key: golangci-lint-v2.12.2-go1.26-${{ runner.os }}
