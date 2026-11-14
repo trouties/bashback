@@ -40,8 +40,11 @@ func build(t *testing.T) (*testDaemon, net.Listener) {
 
 func (td *testDaemon) serve(t *testing.T, ln net.Listener) {
 	t.Helper()
-	go td.d.Serve(ln)
-	t.Cleanup(td.d.Stop)
+	done := make(chan struct{})
+	go func() { td.d.Serve(ln); close(done) }()
+	// Serve keeps writing after Stop (flushOpen, exit GC); wait for it so the
+	// temp dirs are not removed underneath it.
+	t.Cleanup(func() { td.d.Stop(); <-done })
 }
 
 func start(t *testing.T) *testDaemon {
