@@ -4,6 +4,7 @@
   "hooks": {
     "preToolUse":   [ { "matcher": "Shell", "command": "bashback hook pre" } ],
     "postToolUse":  [ { "matcher": "Shell", "command": "bashback hook post" } ],
+    "postToolUseFailure": [ { "matcher": "Shell", "command": "bashback hook post" } ],
     "sessionStart": [ { "command": "bashback hook session-start" } ],
     "sessionEnd":   [ { "command": "bashback hook session-end" } ]
   }

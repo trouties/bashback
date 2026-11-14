@@ -5,9 +5,8 @@ under `~/.bashback`. This page states what that means for secrets.
 
 ## Storage is owner-only
 
-`~/.bashback` and everything under it is created `0700`. It is not encrypted.
-Anyone who can read your home directory can read the snapshots. Opt-in encryption
-(age/git-crypt) is planned but **not yet implemented**.
+`~/.bashback` and everything under it is created `0700`. It is **not
+encrypted**: anyone who can read your home directory can read the snapshots.
 
 ## `.gitignore` is honored by default
 

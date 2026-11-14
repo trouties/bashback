@@ -7,20 +7,24 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/trouties/bashback/skills"
 )
 
 // codexWirings is the Codex hook set. Codex reads the exact Claude hooks-block
-// JSON shape, but its event names differ: there is no PostToolUseFailure, no
-// SessionEnd, and no background-task events; Stop is Codex's session-end analog.
-// Matchers are regexes against tool_name; anchoring avoids matching e.g. "BashOutput".
+// JSON shape, but has no PostToolUseFailure (PostToolUse also fires on a
+// non-zero exit) and no background-task events. Matchers are regexes against
+// tool_name; anchoring keeps "^Bash$" from matching any other tool.
 var codexWirings = []expectedWiring{
 	{"PreToolUse", "^Bash$", "pre"},
 	{"PostToolUse", "^Bash$", "post"},
 	{"SessionStart", "", "session-start"},
-	{"Stop", "", "session-end"},
+	{"SessionEnd", "", "session-end"},
 }
+
+// codexSessionEndTimeout is Codex's ceiling for a SessionEnd hook, in seconds.
+const codexSessionEndTimeout = 3
 
 // codexTarget resolves the hooks.json to write: ~/.codex for --user, else the
 // project-level <workdir>/.codex/hooks.json. Codex has no upward-walk merge of
@@ -55,6 +59,14 @@ func installCodex(workdir, home string, user, printOnly, noSkill bool, exe strin
 	}
 
 	mergeWiringsInto(hooks, exe, codexWirings)
+	for i := range hooks["SessionEnd"] {
+		for j := range hooks["SessionEnd"][i].Hooks {
+			h := &hooks["SessionEnd"][i].Hooks[j]
+			if strings.Contains(h.Command, " hook session-end") && h.Timeout > codexSessionEndTimeout {
+				h.Timeout = codexSessionEndTimeout
+			}
+		}
+	}
 
 	hb, err := json.Marshal(hooks)
 	if err != nil {
@@ -82,10 +94,11 @@ func installCodex(workdir, home string, user, printOnly, noSkill bool, exe strin
 				return errf(stderr, "install: hooks wired, skill install failed: %v", err)
 			}
 		}
-		// Codex does not run newly added hooks until they are trusted, and it does
-		// so silently (no prompt). Tell the user to trust them, or protection
+		// Codex does not run newly added hooks until they are trusted, and it skips
+		// them silently (no prompt). Tell the user to trust them, or protection
 		// never fires.
 		fmt.Fprintln(stdout, "next: run /hooks in Codex to trust these hooks; until then Codex skips them silently")
+		fmt.Fprintln(stdout, "      (unattended runs: codex exec --dangerously-bypass-hook-trust)")
 		return 0
 	}
 

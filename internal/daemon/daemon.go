@@ -347,7 +347,7 @@ func (d *Daemon) handlePost(req Request) Response {
 }
 
 // handleBgFinal captures a backgrounded command's final on-disk state at the
-// moment its TaskOutput-completed / TaskStop event fires. It runs on
+// moment its completion (a Read of its finished output) or TaskStop event fires. It runs on
 // the serial worker, so the journal read/append is race-free like the other ops.
 func (d *Daemon) handleBgFinal(req Request) Response {
 	ctx, cancel := context.WithTimeout(context.Background(), workerGitBudget)

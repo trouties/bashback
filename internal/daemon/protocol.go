@@ -25,11 +25,11 @@ type Request struct {
 	// snapshots up to the moment the command is backgrounded, so the entry is
 	// noted as unprotected for any later writes.
 	Background bool `json:"background,omitempty"`
-	// BgTaskID forwards the original Bash post's tool_response.backgroundTaskId, the
-	// key a later TaskOutput/TaskStop completion uses to find this entry for the
-	// bgfinal capture. Empty on non-background commands.
+	// BgTaskID forwards the original Bash post's tool_response.backgroundTaskId,
+	// the key a later completion (a Read of its output, or TaskStop) uses to find
+	// this entry for the bgfinal capture. Empty on non-background commands.
 	BgTaskID string `json:"bg_task_id,omitempty"`
-	// Source forwards the SessionStart trigger (startup|resume|clear|compact) so
+	// Source forwards the SessionStart trigger (startup|resume|clear|compact|fork) so
 	// warm can decide whether to surface the session's prior snapshot count.
 	Source string `json:"source,omitempty"`
 	// Origin tags which agent platform produced this entry (codex|cursor; empty=Claude).

@@ -37,10 +37,11 @@ func TestInstallCursorWritesHooks(t *testing.T) {
 		matcher string
 		op      string
 	}{
-		"preToolUse":   {"Shell", "pre"},
-		"postToolUse":  {"Shell", "post"},
-		"sessionStart": {"", "session-start"},
-		"sessionEnd":   {"", "session-end"},
+		"preToolUse":         {"Shell", "pre"},
+		"postToolUse":        {"Shell", "post"},
+		"postToolUseFailure": {"Shell", "post"},
+		"sessionStart":       {"", "session-start"},
+		"sessionEnd":         {"", "session-end"},
 	}
 	for event, want := range wantEvents {
 		arr := hooks[event]

@@ -24,7 +24,7 @@ esac
 REPO="trouties/bashback"
 
 # Release assets are versioned (bashback_<version>_<os>_<arch>.tar.gz) and there
-# is no version-less "latest" asset. Pin a release with BASHBACK_VERSION=v1.0.0;
+# is no version-less "latest" asset. Pin a release with BASHBACK_VERSION=v1.1.0;
 # otherwise resolve the latest tag from the redirect GitHub serves for
 # releases/latest, then build the versioned URL.
 if [ -n "${BASHBACK_VERSION:-}" ]; then

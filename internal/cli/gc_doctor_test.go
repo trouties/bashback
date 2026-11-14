@@ -280,10 +280,11 @@ func TestDoctorClaudePluginInstallIsInfo(t *testing.T) {
 	f := newFix(t)
 	isolateHome(t)
 	home := os.Getenv("HOME")
-	dir := filepath.Join(home, ".claude", "plugins", "cache", "claude-plugins", "bashback", "1.0.0")
+	dir := filepath.Join(home, ".claude", "plugins", "cache", "bashback", "bashback", "1.0.0")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	writeInstalledPlugin(t, home, "user", "", dir)
 	var out, errb bytes.Buffer
 	code := Doctor(f.layout, f.work, nil, &out, &errb)
 	s := out.String()
@@ -300,6 +301,52 @@ func TestDoctorClaudePluginInstallIsInfo(t *testing.T) {
 	}
 	if code != 0 {
 		t.Fatalf("plugin-only install should exit 0, got %d:\n%s", code, s)
+	}
+}
+
+// writeInstalledPlugin records a bashback install in Claude Code's
+// plugins/installed_plugins.json, the file doctor treats as the install record.
+func writeInstalledPlugin(t *testing.T, home, scope, projectPath, installPath string) {
+	t.Helper()
+	in := map[string]string{"scope": scope, "installPath": installPath, "version": "1.0.0"}
+	if projectPath != "" {
+		in["projectPath"] = projectPath
+	}
+	b, err := json.Marshal(map[string]any{"version": 2, "plugins": map[string]any{"bashback@bashback": []any{in}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mkdirWrite(t, filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), string(b))
+}
+
+// A marketplace clone survives `/plugin uninstall`; without an install record it
+// wires nothing, so doctor must not report the plugin as wired.
+func TestDoctorMarketplaceCloneIsNotAnInstall(t *testing.T) {
+	f := newFix(t)
+	isolateHome(t)
+	home := os.Getenv("HOME")
+	clone := filepath.Join(home, ".claude", "plugins", "marketplaces", "bashback")
+	mkdirWrite(t, filepath.Join(clone, "skills", "bashback", "SKILL.md"), string(skills.BashbackSKILL))
+	writeInstalledPlugin(t, home, "user", "", "")
+
+	var out, errb bytes.Buffer
+	Doctor(f.layout, f.work, nil, &out, &errb)
+	if strings.Contains(out.String(), "wired via plugin") {
+		t.Fatalf("a marketplace clone alone must not count as a plugin install:\n%s", out.String())
+	}
+}
+
+// A project-scope install applies to its project and subdirectories only.
+func TestClaudePluginDirProjectScope(t *testing.T) {
+	home := t.TempDir()
+	proj := t.TempDir()
+	dir := filepath.Join(home, "install")
+	writeInstalledPlugin(t, home, "project", proj, dir)
+	if got := claudePluginDir(home, filepath.Join(proj, "sub")); got != dir {
+		t.Fatalf("project install should apply inside its project, got %q", got)
+	}
+	if got := claudePluginDir(home, t.TempDir()); got != "" {
+		t.Fatalf("project install must not apply to another project, got %q", got)
 	}
 }
 
@@ -356,8 +403,9 @@ func TestDoctorPluginJSONConsistent(t *testing.T) {
 	f := newFix(t)
 	isolateHome(t)
 	home := os.Getenv("HOME")
-	dir := filepath.Join(home, ".claude", "plugins", "cache", "claude-plugins", "bashback", "1.0.0")
+	dir := filepath.Join(home, ".claude", "plugins", "cache", "bashback", "bashback", "1.0.0")
 	mkdirWrite(t, filepath.Join(dir, "skills", "bashback", "SKILL.md"), string(skills.BashbackSKILL))
+	writeInstalledPlugin(t, home, "user", "", dir)
 
 	var out, errb bytes.Buffer
 	if code := Doctor(f.layout, f.work, []string{"--json"}, &out, &errb); code != 0 {

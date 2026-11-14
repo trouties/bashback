@@ -16,10 +16,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
           check-latest: true
       - name: git version
         run: git --version
@@ -31,24 +31,23 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
           check-latest: true
-      # Pinned and built from source with the runner's Go (prebuilt releases
-      # lag the toolchain and refuse a `go 1.26` module directive). The built
-      # binary is cached keyed on lint version × Go version, so cache hits
-      # skip the ~2.5 min build.
+      # Pinned and built from source with the runner's Go, so the linter always
+      # understands the module's `go` directive. The built binary is cached
+      # keyed on lint version × Go version, so cache hits skip the build.
       - name: cache golangci-lint
         id: lint-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/go/bin/golangci-lint
-          key: golangci-lint-v2.12.2-go1.26-${{ runner.os }}
+          key: golangci-lint-v2.15.0-go1.27-${{ runner.os }}
       - name: build golangci-lint
         if: steps.lint-cache.outputs.cache-hit != 'true'
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
       - name: golangci-lint
         run: "$(go env GOPATH)/bin/golangci-lint run"
 
@@ -63,10 +62,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
           check-latest: true
       - name: hot snapshot benchmark
         run: go test -run '^$' -bench BenchmarkHotSnapshot10k -benchtime 5x ./internal/snapshot/
@@ -74,10 +73,10 @@ jobs:
   govulncheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
           check-latest: true
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

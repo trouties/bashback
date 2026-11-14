@@ -99,7 +99,7 @@ Runs on **Linux** and **macOS** (amd64/arm64). Windows works
 **via WSL2 only** — bashback runs where your agent's shell hooks run, and that
 is a unix environment.
 
-With Go:
+With Go (1.27+):
 
 ```sh
 go install github.com/trouties/bashback/cmd/bashback@latest
@@ -121,7 +121,7 @@ a platform in a single step:
 ```sh
 curl -fsSLO https://raw.githubusercontent.com/trouties/bashback/main/install.sh
 sh install.sh claude    # or: codex | cursor
-# pin a specific release: BASHBACK_VERSION=v1.0.0 sh install.sh claude
+# pin a specific release: BASHBACK_VERSION=v1.1.0 sh install.sh claude
 ```
 
 bashback runs on three agents: **Claude Code**, **Codex CLI**, and **Cursor**.
@@ -134,8 +134,7 @@ differ, noted per platform.
 Install as a plugin — no hand-edited settings.json:
 
 ```text
-/plugin marketplace add trouties/bashback
-/plugin install bashback
+/plugin install bashback --marketplace trouties/bashback
 ```
 
 The plugin ships its hooks and an agent skill; its SessionStart hook
@@ -157,7 +156,8 @@ command's half-completed side effects are still captured.
 
 Boundary: Claude Code's own checkpoints already cover its file edits; bashback
 fills the bash-command gap. Background commands get a second `bgfinal_`
-capture when the agent reads their output.
+capture when the agent reads their finished output or stops them; commands
+started with the Monitor tool are recorded the same way.
 
 ### Codex CLI
 
@@ -169,19 +169,18 @@ bashback install --codex     # if the binary is already on PATH
 
 This wires Codex's hooks and installs the skill to `~/.agents/skills/`. Codex
 does **not** trust newly added hooks automatically, and it skips untrusted
-hooks **silently** — no prompt. You must run `/hooks` in Codex once to trust
-them, or bashback never fires. (`--dangerously-bypass-hook-trust` does not
-help: it still skips untrusted hooks.) There is no headless trust path, so
-automated/CI Codex runs cannot enable bashback without a one-time interactive
-trust.
+hooks **silently** — no prompt. Run `/hooks` in Codex once to trust them, or
+bashback never fires. For unattended runs that cannot trust interactively,
+`codex exec --dangerously-bypass-hook-trust` runs the enabled hooks for that
+one invocation without persisted trust — only use it when you already vet
+the hook sources.
 
-Boundary: the first release covers the **`Bash` shell tool only** —
-`apply_patch` code edits are not snapshotted, since Codex checkpoints its own
-edits and bashback fills the shell-command gap. Failed commands *are* covered:
-Codex fires `PostToolUse` even on a non-zero exit, so a failed command still
+Boundary: bashback covers the **`Bash` shell tool only** — `apply_patch`
+code edits are not snapshotted, since Codex checkpoints its own edits and
+bashback fills the shell-command gap. Failed commands *are* covered: Codex
+fires `PostToolUse` even on a non-zero exit, so a failed command still
 produces a complete, restorable entry. There are no background `bgfinal_`
-entries — Codex emits no background events, and its `Stop` event marks session
-end.
+entries — Codex emits no background-completion events.
 
 ### Cursor
 
@@ -190,18 +189,20 @@ bashback install --cursor    # wire .cursor/hooks.json + write .cursor/rules/bas
 ```
 
 Or install bashback from Cursor's plugin panel (manifest in
-`.cursor-plugin/`). Cursor uses native
-`preToolUse` / `postToolUse` hooks (matcher `Shell`) with a native
-`tool_use_id`, so pre/post snapshots pair natively and entries are normally
-`status=protected`. The `.cursor/rules/bashback.mdc` rule teaches the agent to
-reach for `bashback restore`.
+`.cursor-plugin/`). Cursor uses native `preToolUse` / `postToolUse` /
+`postToolUseFailure` hooks (matcher `Shell`) with a native `tool_use_id`, so
+pre/post snapshots pair natively and a failed command still produces a
+complete, restorable entry. The `.cursor/rules/bashback.mdc` rule teaches the
+agent to reach for `bashback restore`.
 
-Boundary: a **failed** shell command does not fire `postToolUse`, so it leaves
-a `pre_only` entry that `restore` will only apply under `--force` — review the
-risk first (no post snapshot exists, so the failed command's own effects were
-never captured) rather than forcing blindly. There are no background
-`bgfinal_` entries. The `cursor-agent` CLI path is verified; the in-IDE Agent
-path is expected to work but is not yet machine-verified.
+Cursor also runs Claude Code hooks from `.claude/settings.json` by default
+(Third-Party Imports), so a project wired for both agents fires bashback twice
+per command. That is harmless — each command is still recorded once — but
+costs a second hook run; wire one or turn the import off.
+
+Boundary: there are no background `bgfinal_` entries. The Cursor CLI (`agent`)
+path is verified; the in-IDE Agent path is expected to work but is not yet
+machine-verified.
 
 ### Verify and uninstall
 
@@ -297,12 +298,14 @@ Cross-session concurrency (two agent sessions on the same project at once) is
 a known blind spot. Within a session, commands whose pre/post intervals overlap
 are flagged `overlapped` and need `--force` to restore.
 
-**Background commands** (`run_in_background`) are snapshotted when they go to
-the background *and again at completion* — a second `bgfinal_<key>` entry is
-captured when the agent reads the task's output or kills it. `log` attributes
-these to the original command (`bg of <key>`). Two honest edges: if the agent
-never reads the output there is no capture moment, and a task finishing after
-the session ends is not covered.
+**Background commands** (`run_in_background` and Monitor watches, Claude Code)
+are snapshotted when they go to the background *and again at completion* — a
+second `bgfinal_<key>` entry is captured when the agent reads the finished
+task's output file or stops the task. `log` attributes these to the original
+command (`bg of <key>`). Three honest edges: if the agent never reads the
+output there is no capture moment; until the capture, the task's writes can
+land in the entry of a foreground command that ran meanwhile; and a task
+finishing after the session ends is not covered.
 
 See [SECURITY.md](SECURITY.md) for the secrets/redaction stance.
 
@@ -345,6 +348,7 @@ silent miss becomes something `doctor`'s activity section can surface.
 ```sh
 go test -race ./...        # unit + integration (real git) + concurrency
 go vet ./...
+scripts/acceptance.sh      # end-to-end smoke against the built binary
 ```
 
 ## License

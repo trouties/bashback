@@ -81,14 +81,14 @@ Human-only (requires a terminal; refuses otherwise):
 
 Behavior differs slightly per agent platform:
 
-- **Claude Code** — full coverage: failed commands still get complete entries
-  (PostToolUseFailure), background commands get a `bgfinal_<key>` entry.
+- **Claude Code** — failed commands still get complete entries
+  (PostToolUseFailure); background commands get a `bgfinal_<key>` entry.
+  Commands started with the Monitor tool are recorded as background commands.
 - **Codex** — Bash commands only; `apply_patch` edits are NOT protected.
-  Entry keys look like `call_*`. Failed commands are covered (PostToolUse
-  fires on failure). Session end maps to Stop; there is no background capture.
-- **Cursor** — a failed command leaves a `pre_only` entry (postToolUse does
-  not fire on failure), so undoing it needs `--force` — explain the risk
-  first. There is no `bgfinal_` capture. Keys are native tool_use_ids.
+  Failed commands are covered (PostToolUse fires on a non-zero exit). There is
+  no background capture.
+- **Cursor** — Shell commands only; failed commands get complete entries
+  (postToolUseFailure). There is no `bgfinal_` capture.
 
 ## Multi-session
 
@@ -116,10 +116,13 @@ gate listed and match recent commands against what you actually ran.
 
 ## Background commands
 
-A backgrounded command gets a second snapshot when it finishes, recorded as
-`bgfinal_<key>`. Review with `bashback diff bgfinal_<key>`, undo with
-`bashback restore bgfinal_<key>`. These entries appear in `list --json` with
-the `bgfinal_` key prefix.
+On Claude Code, a backgrounded command gets a second snapshot, recorded as
+`bgfinal_<key>`, when you Read its output file after it has finished or stop it
+with TaskStop. Until that capture, writes it makes after backgrounding can land
+in the entry of a later command that ran meanwhile, so read the output of a
+finished background command before undoing anything. Review with
+`bashback diff bgfinal_<key>`, undo with `bashback restore bgfinal_<key>`.
+These entries appear in `list --json` with the `bgfinal_` key prefix.
 
 ## Boundaries — do not over-promise
 

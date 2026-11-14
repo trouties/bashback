@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/trouties/bashback/skills"
 )
@@ -77,7 +76,7 @@ func skillStatus(workdir, home string) (status, path string) {
 		}
 		return "stale", p
 	}
-	if p := pluginSkillPath(home); p != "" {
+	if p := pluginSkillPath(home, workdir); p != "" {
 		b, err := os.ReadFile(p)
 		if err == nil && bytes.Equal(b, skills.BashbackSKILL) {
 			return "ok", p
@@ -89,26 +88,14 @@ func skillStatus(workdir, home string) (status, path string) {
 	return "missing", ""
 }
 
-func pluginSkillPath(home string) string {
-	dir := claudePluginDir(home)
+func pluginSkillPath(home, workdir string) string {
+	dir := claudePluginDir(home, workdir)
 	if dir == "" {
 		return ""
 	}
-	// A marketplace install nests the skill beneath a versioned directory
-	// (cache/<marketplace>/bashback/<version>/skills/bashback/SKILL.md), so the
-	// depth is not fixed; walk the plugin tree and match the skill suffix instead
-	// of guessing how many levels down it sits.
-	suffix := string(os.PathSeparator) + filepath.Join("skills", "bashback", "SKILL.md")
-	found := ""
-	_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
-		if err != nil || found != "" {
-			return nil
-		}
-		if !d.IsDir() && strings.HasSuffix(p, suffix) {
-			found = p
-			return filepath.SkipAll
-		}
-		return nil
-	})
-	return found
+	p := filepath.Join(dir, "skills", "bashback", "SKILL.md")
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
 }

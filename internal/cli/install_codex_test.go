@@ -36,7 +36,7 @@ func TestInstallCodexWritesHooks(t *testing.T) {
 		"PreToolUse":   exe + " hook pre",
 		"PostToolUse":  exe + " hook post",
 		"SessionStart": exe + " hook session-start",
-		"Stop":         exe + " hook session-end",
+		"SessionEnd":   exe + " hook session-end",
 	}
 	for event, wantCmd := range want {
 		arr := hooks[event]
@@ -50,6 +50,9 @@ func TestInstallCodexWritesHooks(t *testing.T) {
 		if !filepath.IsAbs(firstToken(got)) {
 			t.Fatalf("%s command is not an absolute path: %q", event, got)
 		}
+	}
+	if to := hooks["SessionEnd"][0].Hooks[0].Timeout; to != codexSessionEndTimeout {
+		t.Fatalf("SessionEnd timeout = %d, want Codex's ceiling %d", to, codexSessionEndTimeout)
 	}
 }
 

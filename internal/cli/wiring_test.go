@@ -33,7 +33,7 @@ func writeSettings(t *testing.T, path, bin string, includeBg bool) {
 	bgLine := ""
 	if includeBg {
 		bgLine = `,
-        { "matcher": "TaskOutput|TaskStop|BashOutput|KillShell", "hooks": [ { "type": "command", "command": "` + bin + ` hook bg", "timeout": 5 } ] }`
+        { "matcher": "TaskStop|Read", "hooks": [ { "type": "command", "command": "` + bin + ` hook bg", "timeout": 5 } ] }`
 	}
 	s := `{
   "hooks": {
@@ -157,7 +157,7 @@ func writeCodexHooks(t *testing.T, path, bin string) {
 		`"PreToolUse":[{"matcher":"^Bash$","hooks":[{"type":"command","command":"` + bin + ` hook pre","timeout":5}]}],` +
 		`"PostToolUse":[{"matcher":"^Bash$","hooks":[{"type":"command","command":"` + bin + ` hook post","timeout":5}]}],` +
 		`"SessionStart":[{"hooks":[{"type":"command","command":"` + bin + ` hook session-start","timeout":5}]}],` +
-		`"Stop":[{"hooks":[{"type":"command","command":"` + bin + ` hook session-end","timeout":5}]}]` +
+		`"SessionEnd":[{"hooks":[{"type":"command","command":"` + bin + ` hook session-end","timeout":3}]}]` +
 		`}}`
 	mkdirWrite(t, path, s)
 }
@@ -167,6 +167,7 @@ func writeCursorHooks(t *testing.T, path, bin string) {
 	s := `{"version":1,"hooks":{` +
 		`"preToolUse":[{"matcher":"Shell","command":"` + bin + ` hook pre"}],` +
 		`"postToolUse":[{"matcher":"Shell","command":"` + bin + ` hook post"}],` +
+		`"postToolUseFailure":[{"matcher":"Shell","command":"` + bin + ` hook post"}],` +
 		`"sessionStart":[{"command":"` + bin + ` hook session-start"}],` +
 		`"sessionEnd":[{"command":"` + bin + ` hook session-end"}]` +
 		`}}`
@@ -229,7 +230,7 @@ func TestCheckCodexWiringPartial(t *testing.T) {
 		t.Fatalf("want 2 ok rows (PreToolUse, PostToolUse), got %d: %+v", n, st)
 	}
 	if n := countStatus(st, "missing"); n != 2 {
-		t.Fatalf("want 2 missing rows (SessionStart, Stop), got %d: %+v", n, st)
+		t.Fatalf("want 2 missing rows (SessionStart, SessionEnd), got %d: %+v", n, st)
 	}
 }
 

@@ -41,7 +41,7 @@ echo "$(payload u1 'rm -rf data')" | "$BIN" hook post
 echo "PASS #1 restore round-trip"
 
 # undo the restore (restore is itself a snapshot)
-UNDO_KEY="$(cd "$WORK" && "$BIN" list | awk '/restored/ {print $1; exit}')"
+UNDO_KEY="$(cd "$WORK" && "$BIN" list | awk '/restored/ && k == "" {k = $1} END {print k}')"
 [ -n "$UNDO_KEY" ] || fail "#1 restored entry not listed"
 ( cd "$WORK" && "$BIN" restore "$UNDO_KEY" >/dev/null )
 [ -e "$WORK/created.txt" ] || fail "#1 undo-of-restore did not bring command state back"
@@ -127,7 +127,7 @@ sleep 1.2
 echo "$(sp d1 'clobber doc')" | "$BIN" hook pre; rm "$SNP/doc.txt"; echo "garbage" > "$SNP/doc.txt"; echo "$(sp d1 'clobber doc')" | "$BIN" hook post
 # Use the stable snap_* key (column 2), not the relative @N, since rewind appends
 # an entry and shifts every @N afterward.
-SNAP_KEY="$(cd "$SNP" && "$BIN" list | awk '/manual/ {print $2; exit}')"
+SNAP_KEY="$(cd "$SNP" && "$BIN" list | awk '/manual/ && k == "" {k = $2} END {print k}')"
 [ -n "$SNAP_KEY" ] || fail "#8 manual snap not listed"
 case "$SNAP_KEY" in snap_*) ;; *) fail "#8 unexpected snap key: $SNAP_KEY" ;; esac
 # restore (not rewind) on a manual key must refuse and point at rewind
@@ -159,7 +159,7 @@ BG="$(mktemp -d)"
 git -C "$BG" init -q
 git -C "$BG" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
 bgp() { printf '{"session_id":"bg","cwd":"%s","tool_use_id":"%s","tool_input":{"command":"%s","run_in_background":true},"tool_response":{"backgroundTaskId":"%s"}}' "$BG" "$1" "$2" "$3"; }
-bgevent() { printf '{"session_id":"bg","cwd":"%s","tool_name":"TaskOutput","tool_input":{"task_id":"%s"},"tool_response":{"task":{"status":"completed","exitCode":0}}}' "$BG" "$1"; }
+bgevent() { printf '{"session_id":"bg","cwd":"%s","tool_name":"Read","tool_input":{"file_path":"/tmp/s/tasks/%s.output"},"tool_response":{"type":"text","file":{"content":"done\\n\\n[exited with code 0]\\n"}}}' "$BG" "$1"; }
 echo "before" > "$BG/log.txt"
 echo "$(bgp bg1 'long-task &' task-smoke)" | "$BIN" hook pre
 echo "$(bgp bg1 'long-task &' task-smoke)" | "$BIN" hook post   # post taken at backgrounding
@@ -190,7 +190,7 @@ cat > "$M5WORK/.claude/settings.json" <<EOF
   "PreToolUse":  [{ "matcher": "Bash", "hooks": [{ "type":"command","command":"$BIN hook pre","timeout":5 }] }],
   "PostToolUse": [
     { "matcher": "Bash", "hooks": [{ "type":"command","command":"$BIN hook post","timeout":5 }] },
-    { "matcher": "TaskOutput|TaskStop|BashOutput|KillShell", "hooks": [{ "type":"command","command":"$BIN hook bg","timeout":5 }] }
+    { "matcher": "TaskStop|Read", "hooks": [{ "type":"command","command":"$BIN hook bg","timeout":5 }] }
   ],
   "PostToolUseFailure": [{ "matcher": "Bash", "hooks": [{ "type":"command","command":"$BIN hook post","timeout":5 }] }],
   "SessionStart": [{ "hooks": [{ "type":"command","command":"$BIN hook session-start","timeout":5 }] }]

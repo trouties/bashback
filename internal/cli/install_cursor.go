@@ -22,6 +22,7 @@ type cursorHookEntry struct {
 var cursorWirings = []expectedWiring{
 	{"preToolUse", "Shell", "pre"},
 	{"postToolUse", "Shell", "post"},
+	{"postToolUseFailure", "Shell", "post"},
 	{"sessionStart", "", "session-start"},
 	{"sessionEnd", "", "session-end"},
 }

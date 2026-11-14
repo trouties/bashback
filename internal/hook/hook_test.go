@@ -158,15 +158,28 @@ func runBgOrig(t *testing.T, work, taskID string, preFiles map[string]string) {
 	Run("post", strings.NewReader(mk()), &out, &errb)
 }
 
-// bgEventJSON builds a TaskOutput/TaskStop PostToolUse payload.
-func bgEventJSON(t *testing.T, work, toolName, taskID, status string) string {
+// bgEventJSON builds a background-completion PostToolUse payload: a TaskStop
+// kill, or a Read of the task's output file (content carries the exit marker
+// only when finished).
+func bgEventJSON(t *testing.T, work, toolName, taskID string, finished bool) string {
 	t.Helper()
 	p := map[string]any{
-		"session_id":    "sess1",
-		"cwd":           work,
-		"tool_name":     toolName,
-		"tool_input":    map[string]any{"task_id": taskID},
-		"tool_response": map[string]any{"task": map[string]any{"status": status, "exitCode": 0}},
+		"session_id": "sess1",
+		"cwd":        work,
+		"tool_name":  toolName,
+	}
+	switch toolName {
+	case "TaskStop":
+		p["tool_input"] = map[string]any{"task_id": taskID}
+		p["tool_response"] = map[string]any{"task_id": taskID, "task_type": "local_bash"}
+	case "Read":
+		path := filepath.Join(t.TempDir(), "sess1", "tasks", taskID+".output")
+		content := "partial\n"
+		if finished {
+			content = "done\n\n[exited with code 0]\n"
+		}
+		p["tool_input"] = map[string]any{"file_path": path}
+		p["tool_response"] = map[string]any{"type": "text", "file": map[string]any{"filePath": path, "content": content}}
 	}
 	b, err := json.Marshal(p)
 	if err != nil {
@@ -186,31 +199,30 @@ func hasBgFinal(t *testing.T, layout paths.Layout, work string) bool {
 	return false
 }
 
-// A TaskOutput completion fires bgfinal, capturing the background command's
-// post-backgrounding writes.
+// Reading a finished task's output file fires bgfinal, capturing the background
+// command's post-backgrounding writes.
 func TestHookBgDispatchesOnCompletion(t *testing.T) {
 	layout, work := hookEnv(t)
 	runBgOrig(t, work, "taskA", nil)
 	os.WriteFile(filepath.Join(work, "out.log"), []byte("done\n"), 0o644)
 
 	var out, errb bytes.Buffer
-	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskOutput", "taskA", "completed")), &out, &errb); code != 0 {
+	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "Read", "taskA", true)), &out, &errb); code != 0 {
 		t.Fatalf("hook bg exit %d: %s", code, errb.String())
 	}
 	if !hasBgFinal(t, layout, work) {
-		t.Fatal("TaskOutput completion should create a bgfinal entry")
+		t.Fatal("reading a finished task's output should create a bgfinal entry")
 	}
 }
 
-// TaskStop (kill) is unconditionally terminal and fires bgfinal regardless of any
-// status field.
-func TestHookBgKillShellAlwaysFinal(t *testing.T) {
+// TaskStop (kill) is unconditionally terminal and fires bgfinal.
+func TestHookBgTaskStopAlwaysFinal(t *testing.T) {
 	layout, work := hookEnv(t)
 	runBgOrig(t, work, "taskK", nil)
 	os.WriteFile(filepath.Join(work, "out.log"), []byte("partial\n"), 0o644)
 
 	var out, errb bytes.Buffer
-	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskStop", "taskK", "")), &out, &errb); code != 0 {
+	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskStop", "taskK", false)), &out, &errb); code != 0 {
 		t.Fatalf("hook bg exit %d: %s", code, errb.String())
 	}
 	if !hasBgFinal(t, layout, work) {
@@ -218,14 +230,14 @@ func TestHookBgKillShellAlwaysFinal(t *testing.T) {
 	}
 }
 
-// A still-running TaskOutput (no completed status) does not capture; exit 0.
+// Reading a still-running task's output (no exit marker) does not capture; exit 0.
 func TestHookBgRunningNoop(t *testing.T) {
 	layout, work := hookEnv(t)
 	runBgOrig(t, work, "taskR", nil)
 	os.WriteFile(filepath.Join(work, "out.log"), []byte("mid\n"), 0o644)
 
 	var out, errb bytes.Buffer
-	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskOutput", "taskR", "running")), &out, &errb); code != 0 {
+	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "Read", "taskR", false)), &out, &errb); code != 0 {
 		t.Fatalf("hook bg exit %d", code)
 	}
 	if hasBgFinal(t, layout, work) {
@@ -240,11 +252,86 @@ func TestHookBgMissingFieldsNoop(t *testing.T) {
 	os.WriteFile(filepath.Join(work, "out.log"), []byte("x\n"), 0o644)
 
 	var out, errb bytes.Buffer
-	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskOutput", "", "completed")), &out, &errb); code != 0 {
+	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskStop", "", false)), &out, &errb); code != 0 {
 		t.Fatalf("hook bg exit %d", code)
 	}
 	if hasBgFinal(t, layout, work) {
 		t.Fatal("a missing task id must not create a bgfinal entry")
+	}
+}
+
+// A Read of an ordinary file never fires bgfinal, even when its content happens
+// to contain the exit marker: only <dir>/tasks/<id>.output qualifies.
+func TestHookBgIgnoresOtherReads(t *testing.T) {
+	layout, work := hookEnv(t)
+	runBgOrig(t, work, "taskN", nil)
+	os.WriteFile(filepath.Join(work, "out.log"), []byte("x\n"), 0o644)
+
+	path := filepath.Join(work, "taskN.output")
+	b, _ := json.Marshal(map[string]any{
+		"session_id":    "sess1",
+		"cwd":           work,
+		"tool_name":     "Read",
+		"tool_input":    map[string]any{"file_path": path},
+		"tool_response": map[string]any{"type": "text", "file": map[string]any{"filePath": path, "content": "[exited with code 0]"}},
+	})
+	var out, errb bytes.Buffer
+	if code := Run("bg", strings.NewReader(string(b)), &out, &errb); code != 0 {
+		t.Fatalf("hook bg exit %d", code)
+	}
+	if hasBgFinal(t, layout, work) {
+		t.Fatal("a Read outside a tasks/ dir must not create a bgfinal entry")
+	}
+}
+
+// `hook bg` sees every Read; an unparseable (e.g. oversized image) payload is
+// not a task-output read and must not be recorded as a hook error.
+func TestHookBgParseFailureNotLogged(t *testing.T) {
+	home := filepath.Join(t.TempDir(), ".bashback")
+	t.Setenv("BASHBACK_HOME", home)
+	t.Chdir(t.TempDir())
+	wd, _ := os.Getwd()
+
+	var out, errb bytes.Buffer
+	if code := Run("bg", strings.NewReader("{not json"), &out, &errb); code != 0 {
+		t.Fatalf("parse failure must exit 0, got %d", code)
+	}
+	if _, err := os.Stat(paths.New(home).HookLogPath(wd)); !os.IsNotExist(err) {
+		t.Fatalf("bg parse failure must not write hook.log (stat err=%v)", err)
+	}
+}
+
+// A Monitor command reaches the Bash-matched PreToolUse hook as a Bash call and
+// its PostToolUse as tool_name Monitor once launched; the pair must close like a
+// backgrounded command, and a TaskStop of the watch captures its final state.
+func TestHookMonitorPairsAsBackground(t *testing.T) {
+	layout, work := hookEnv(t)
+	mk := func(toolName string, resp any) string {
+		b, _ := json.Marshal(map[string]any{
+			"session_id":    "sess1",
+			"cwd":           work,
+			"tool_use_id":   "tbg",
+			"tool_name":     toolName,
+			"tool_input":    map[string]any{"command": "./watch.sh"},
+			"tool_response": resp,
+		})
+		return string(b)
+	}
+	var out, errb bytes.Buffer
+	Run("pre", strings.NewReader(mk("Bash", nil)), &out, &errb)
+	Run("post", strings.NewReader(mk("Monitor", map[string]any{"taskId": "mon1", "timeoutMs": 30000})), &out, &errb)
+
+	merged, _ := journal.ReadMerged(layout.JournalPath(work), journal.ToolUseIDKeyer{})
+	if len(merged) != 1 || merged[0].PostSHA == "" || merged[0].BgTaskID != "mon1" {
+		t.Fatalf("Monitor pre/post should pair into one background entry, got %+v", merged)
+	}
+
+	os.WriteFile(filepath.Join(work, "watch.log"), []byte("tick\n"), 0o644)
+	if code := Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskStop", "mon1", false)), &out, &errb); code != 0 {
+		t.Fatalf("hook bg exit %d", code)
+	}
+	if !hasBgFinal(t, layout, work) {
+		t.Fatal("stopping the Monitor task should create a bgfinal entry")
 	}
 }
 
@@ -270,7 +357,7 @@ func TestHookBgInjectsOnMajorChange(t *testing.T) {
 		os.Remove(filepath.Join(work, "out.log")) // a deletion → qualifies for major
 
 		var out, errb bytes.Buffer
-		Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskOutput", "taskM", "completed")), &out, &errb)
+		Run("bg", strings.NewReader(bgEventJSON(t, work, "Read", "taskM", true)), &out, &errb)
 		s := out.String()
 		if !strings.Contains(s, "background command finished") || !strings.Contains(s, "bgfinal_tbg") {
 			t.Fatalf("major bgfinal should inject a finished envelope with the undo key, got %q", s)
@@ -284,7 +371,7 @@ func TestHookBgInjectsOnMajorChange(t *testing.T) {
 		os.Remove(filepath.Join(work, "out.log"))
 
 		var out, errb bytes.Buffer
-		Run("bg", strings.NewReader(bgEventJSON(t, work, "TaskOutput", "taskO", "completed")), &out, &errb)
+		Run("bg", strings.NewReader(bgEventJSON(t, work, "Read", "taskO", true)), &out, &errb)
 		if out.String() != "" {
 			t.Fatalf("off tier must emit nothing, got %q", out.String())
 		}

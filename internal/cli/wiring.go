@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -25,9 +26,8 @@ type wiringStatus struct {
 
 // expectedWirings is the set of hooks bashback needs. Op is the
 // bashback subcommand the command must end in (`… hook <op>`); matching keys on
-// that op-suffix, NOT on Matcher, so alias ordering in the bg matcher string
-// ("TaskOutput|TaskStop|BashOutput|KillShell") never causes a false negative.
-// Matcher here is the display/identity value only.
+// that op-suffix, NOT on Matcher, so a reordered matcher string never causes a
+// false negative. Matcher is the value install writes and doctor displays.
 type expectedWiring struct{ Event, Matcher, Op string }
 
 // wiringEntry is a resolved hook command found in a settings file.
@@ -35,9 +35,9 @@ type wiringEntry struct{ Matcher, Command string }
 
 var expectedWirings = []expectedWiring{
 	{"PreToolUse", "Bash", "pre"},
-	{"PostToolUse", "Bash", "post"},
-	{"PostToolUse", "TaskOutput|TaskStop|BashOutput|KillShell", "bg"},
-	{"PostToolUseFailure", "Bash", "post"},
+	{"PostToolUse", "Bash|Monitor", "post"},
+	{"PostToolUse", "TaskStop|Read", "bg"},
+	{"PostToolUseFailure", "Bash|Monitor", "post"},
 	{"SessionStart", "", "session-start"},
 	{"SessionEnd", "", "session-end"},
 }
@@ -308,31 +308,58 @@ func isExecutableFile(path string) bool {
 	return !fi.IsDir() && fi.Mode().Perm()&0o111 != 0
 }
 
-// claudePluginDir returns the bashback plugin directory under home's claude
-// plugin tree, or "" if none. Hooks and the skill shipped by the plugin live in
-// the plugin's own tree, invisible to the settings scan, so doctor must not
-// report them as missing.
-func claudePluginDir(home string) string {
-	root := filepath.Join(home, ".claude", "plugins")
-	found := ""
-	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-		if err != nil || !d.IsDir() {
-			return nil
-		}
-		if strings.EqualFold(d.Name(), "bashback") {
-			found = p
-			return filepath.SkipAll
-		}
-		// keep the walk shallow: plugins/<x>/<y>/bashback is the deepest shape
-		if rel, rerr := filepath.Rel(root, p); rerr == nil && strings.Count(rel, string(os.PathSeparator)) >= 3 {
-			return filepath.SkipDir
-		}
-		return nil
-	})
-	return found
+// installedPlugins mirrors the part of Claude Code's
+// plugins/installed_plugins.json that doctor reads: each "name@marketplace" key
+// lists that plugin's installs.
+type installedPlugins struct {
+	Plugins map[string][]struct {
+		Scope       string `json:"scope"`
+		ProjectPath string `json:"projectPath"`
+		InstallPath string `json:"installPath"`
+	} `json:"plugins"`
 }
 
-// claudePluginInstalled reports whether a bashback plugin directory exists.
-func claudePluginInstalled(home string) bool {
-	return claudePluginDir(home) != ""
+// claudePluginDir returns the install path of a bashback plugin that applies to
+// workdir (a user-scope install, or a project/local install at workdir or one of
+// its ancestors), or "" if none. Hooks and the skill shipped by the plugin live
+// in the plugin's own tree, invisible to the settings scan, so doctor must not
+// report them as missing. installed_plugins.json is the record of what is
+// installed: a marketplace clone alone wires nothing.
+func claudePluginDir(home, workdir string) string {
+	if home == "" {
+		return ""
+	}
+	b, err := os.ReadFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"))
+	if err != nil {
+		return ""
+	}
+	var ip installedPlugins
+	if json.Unmarshal(b, &ip) != nil {
+		return ""
+	}
+	keys := make([]string, 0, len(ip.Plugins))
+	for k := range ip.Plugins {
+		if name, _, _ := strings.Cut(k, "@"); name == "bashback" {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	wd := filepath.Clean(workdir)
+	for _, k := range keys {
+		for _, in := range ip.Plugins[k] {
+			if in.InstallPath == "" {
+				continue
+			}
+			pp := filepath.Clean(in.ProjectPath)
+			if in.Scope == "user" || (in.ProjectPath != "" && (wd == pp || strings.HasPrefix(wd, pp+string(os.PathSeparator)))) {
+				return in.InstallPath
+			}
+		}
+	}
+	return ""
+}
+
+// claudePluginInstalled reports whether a bashback plugin install applies to workdir.
+func claudePluginInstalled(home, workdir string) bool {
+	return claudePluginDir(home, workdir) != ""
 }

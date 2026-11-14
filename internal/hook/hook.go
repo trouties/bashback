@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/trouties/bashback/internal/client"
@@ -38,8 +39,8 @@ type payload struct {
 	CWD           string `json:"cwd"`
 	ToolUseID     string `json:"tool_use_id"`
 	HookEventName string `json:"hook_event_name"`
-	// Source is the SessionStart trigger: startup|resume|clear|compact. resume and
-	// compact mean the agent is re-entering a session that may already have
+	// Source is the SessionStart trigger: startup|resume|clear|compact|fork. resume
+	// and compact mean the agent is re-entering a session that may already have
 	// snapshots, so the orientation hint carries the entry count.
 	Source    string `json:"source"`
 	ToolInput struct {
@@ -47,15 +48,18 @@ type payload struct {
 		// run_in_background is reported (true) on both Pre and Post when the command
 		// runs in the background; absent/false otherwise.
 		RunInBackground bool `json:"run_in_background"`
-		// TaskID identifies the background task on TaskOutput/TaskStop payloads (the
-		// `hook bg` entrypoint); equals the original Bash's backgroundTaskId.
+		// TaskID identifies the background task on TaskStop payloads (the `hook bg`
+		// entrypoint); equals the original Bash's backgroundTaskId.
 		TaskID string `json:"task_id"`
+		// FilePath is the Read target; a background task's output file is named
+		// after its task id (`hook bg`).
+		FilePath string `json:"file_path"`
 	} `json:"tool_input"`
 	// ToolResponse carries the tool's result: backgroundTaskId on the original Bash
-	// post when backgrounded, plus the TaskOutput/TaskStop completion fields that
-	// drive `hook bg`. Kept raw because codex sends it as a plain JSON string while
-	// claude/cursor send an object; decode on demand via toolResponse so a string,
-	// object, or absent value all parse without error.
+	// post when backgrounded, plus the Read content that drives `hook bg`. Kept raw
+	// because codex sends it as a plain JSON string while claude/cursor send an
+	// object; decode on demand via toolResponse so a string, object, or absent
+	// value all parse without error.
 	ToolResponse json.RawMessage `json:"tool_response"`
 	ToolName     string          `json:"tool_name"`
 	// Not decoded from hook stdin; set during payload normalization before dispatch.
@@ -65,10 +69,11 @@ type payload struct {
 // toolResponseFields is the structured view of tool_response we consume.
 type toolResponseFields struct {
 	BackgroundTaskID string `json:"backgroundTaskId"`
-	Task             struct {
-		Status   string `json:"status"`
-		ExitCode int    `json:"exitCode"`
-	} `json:"task"`
+	// MonitorTaskID is the background task id a Monitor call returns.
+	MonitorTaskID string `json:"taskId"`
+	File          struct {
+		Content string `json:"content"`
+	} `json:"file"`
 }
 
 // toolResponse decodes the raw tool_response on demand. A codex-style string or
@@ -83,7 +88,7 @@ func (p payload) toolResponse() toolResponseFields {
 	return tr
 }
 
-// Run executes one hook op (pre|post|session-start|session-end) and ALWAYS
+// Run executes one hook op (pre|post|bg|session-start|session-end) and ALWAYS
 // returns 0. The op is the bashback subcommand, not the Claude event name.
 // stdout carries the optional agent-context injection envelope; it
 // stays empty unless context_feedback opts in.
@@ -124,6 +129,12 @@ func Run(op string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return 0
 	}
 	if err != nil {
+		// `hook bg` sees every Read, including ones whose payload (e.g. an image)
+		// exceeds the stdin cap; none of those can be a task-output read, so a
+		// parse failure there is not an error worth recording.
+		if op == "bg" {
+			return 0
+		}
 		// No payload, no cwd to key the project: fall back to the hook's own working
 		// directory (Claude Code runs hooks with the project as cwd). No layout means
 		// nowhere to record, so give up silently. Fail-open either way.
@@ -162,9 +173,9 @@ func Run(op string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		resp := dispatch(ctx, layout, p, daemon.OpPost, stderr)
 		emitContextFor(p.Origin, stdout, "post", tierFor(layout, p.CWD), resp.Files, resp.Deletes, resp.Key, "", "", 0)
 	case "bg":
-		// A backgrounded command's completion (TaskOutput status=completed) or kill
-		// (TaskStop). Capture its final state now — after the task is GC'd the read
-		// no longer fires. Running/missing-field events no-op (fail-open).
+		// A backgrounded command's completion (a Read of its finished output file) or
+		// kill (TaskStop). Capture its final state now. Any other Read, a still
+		// running task, or a missing id no-ops (fail-open).
 		taskID, trigger := bgFinalTrigger(p)
 		if !trigger {
 			return 0
@@ -204,14 +215,21 @@ func newHookEngine(layout paths.Layout) *snapshot.Engine {
 
 func dispatch(ctx context.Context, layout paths.Layout, p payload, op string, stderr io.Writer) daemon.Response {
 	c := client.New(layout, newHookEngine(layout), p.SessionID)
+	background, bgTaskID := p.ToolInput.RunInBackground, p.toolResponse().BackgroundTaskID
+	// Claude Code hands a Monitor command to Bash-matched PreToolUse hooks as a
+	// Bash call; its PostToolUse (tool_name Monitor) fires once the watch is
+	// launched, so the entry pairs like a backgrounded Bash command.
+	if p.ToolName == "Monitor" {
+		background, bgTaskID = true, p.toolResponse().MonitorTaskID
+	}
 	req := daemon.Request{
 		Op:         op,
 		Workdir:    p.CWD,
 		SessionID:  p.SessionID,
 		ToolUseID:  p.ToolUseID,
 		Command:    p.ToolInput.Command,
-		Background: p.ToolInput.RunInBackground,
-		BgTaskID:   p.toolResponse().BackgroundTaskID,
+		Background: background,
+		BgTaskID:   bgTaskID,
 		CmdHash:    commandHash(p.ToolInput.Command),
 		Source:     p.Source,
 		Origin:     p.Origin,
@@ -226,8 +244,7 @@ func dispatch(ctx context.Context, layout paths.Layout, p payload, op string, st
 	return resp
 }
 
-// dispatchBg sends an OpBgFinal keyed by the background task id (tool_input.task_id
-// on the TaskOutput/TaskStop event).
+// dispatchBg sends an OpBgFinal keyed by the background task id.
 func dispatchBg(ctx context.Context, layout paths.Layout, p payload, taskID string, stderr io.Writer) daemon.Response {
 	c := client.New(layout, newHookEngine(layout), p.SessionID)
 	req := daemon.Request{
@@ -247,22 +264,29 @@ func dispatchBg(ctx context.Context, layout paths.Layout, p payload, taskID stri
 	return resp
 }
 
-// bgFinalTrigger reports whether a TaskOutput/TaskStop event is a background
-// completion worth capturing, returning the task id. TaskOutput counts only when
-// status is completed; TaskStop (kill) is unconditionally terminal.
-// BashOutput/KillShell are accepted as version aliases. A missing task id no-ops.
+// bgExitMarker is the line Claude Code appends to a background task's output
+// file once the task has exited.
+const bgExitMarker = "[exited with code "
+
+// bgFinalTrigger reports whether a PostToolUse event marks a background task as
+// finished, returning the task id. TaskStop (a kill) is always terminal. A Read
+// counts only when it targets a task output file (<dir>/tasks/<id>.output) whose
+// content carries the exit marker, i.e. the task has completed.
 func bgFinalTrigger(p payload) (string, bool) {
-	id := p.ToolInput.TaskID
-	if id == "" {
-		return "", false
-	}
 	switch p.ToolName {
-	case "TaskOutput", "BashOutput":
-		if p.toolResponse().Task.Status == "completed" {
+	case "TaskStop":
+		if id := p.ToolInput.TaskID; id != "" {
 			return id, true
 		}
-	case "TaskStop", "KillShell":
-		return id, true
+	case "Read":
+		path := p.ToolInput.FilePath
+		if filepath.Base(filepath.Dir(path)) != "tasks" {
+			return "", false
+		}
+		id, ok := strings.CutSuffix(filepath.Base(path), ".output")
+		if ok && id != "" && strings.Contains(p.toolResponse().File.Content, bgExitMarker) {
+			return id, true
+		}
 	}
 	return "", false
 }

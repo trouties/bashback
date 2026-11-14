@@ -429,3 +429,27 @@ func TestInstallBackupPreservesOriginal(t *testing.T) {
 		t.Fatalf("backup overwritten on second install: got %q, want the original", b)
 	}
 }
+
+// Re-installing converges a bashback-only group's matcher to the current one,
+// but never rewrites a group whose matcher also scopes the user's own hooks.
+func TestMergeWiringsConvergesOwnMatcherOnly(t *testing.T) {
+	exe := "/bin/bashback"
+	hooks := map[string][]hookMatcher{
+		"PostToolUse": {
+			{Matcher: "TaskOutput|TaskStop", Hooks: []hookCmd{{Type: "command", Command: exe + " hook bg", Timeout: 5}}},
+		},
+		"PreToolUse": {
+			{Matcher: "Bash|Edit", Hooks: []hookCmd{
+				{Type: "command", Command: "/usr/local/bin/audit"},
+				{Type: "command", Command: exe + " hook pre", Timeout: 5},
+			}},
+		},
+	}
+	mergeWiringsInto(hooks, exe, expectedWirings)
+	if got := hooks["PostToolUse"][0].Matcher; got != "TaskStop|Read" {
+		t.Fatalf("bashback-only group matcher = %q, want TaskStop|Read", got)
+	}
+	if got := hooks["PreToolUse"][0].Matcher; got != "Bash|Edit" {
+		t.Fatalf("shared group matcher must stay untouched, got %q", got)
+	}
+}

@@ -6,6 +6,43 @@ All notable changes to bashback are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-14
+
+Tracks the current agent releases (Claude Code 2.1.325, Codex CLI 0.169,
+Cursor CLI 2026.11.13); earlier versions are not supported.
+
+### Changed
+
+- Claude Code: the background final capture (`bgfinal_<key>`) now triggers on
+  a `Read` of the finished task's output file or on `TaskStop`, replacing the
+  removed `TaskOutput` tool. The hook matcher is now `TaskStop|Read`.
+- Claude Code: the post hooks match `Bash|Monitor`; a Monitor watch is recorded
+  as a background command and gets a final capture when it is stopped.
+- Codex CLI: session end is wired to `SessionEnd` (timeout 3 s, Codex's
+  ceiling) instead of `Stop`.
+- `bashback install` also converges the matcher of a hook group it owns alone,
+  so re-running it upgrades an existing wiring.
+- Go 1.27 is now the minimum toolchain; CI actions and golangci-lint bumped.
+- Plugin manifests: Claude Code manifest gains homepage, repository, license
+  and keywords; the Cursor manifest uses the documented `logo` key.
+
+### Fixed
+
+- Cursor: failed shell commands are wired through `postToolUseFailure` and get
+  complete, restorable entries instead of `pre_only` ones.
+- Claude Code: commands started with the Monitor tool no longer leave a
+  permanent `pre_only` entry (Bash-matched PreToolUse hooks fire for Monitor,
+  Bash-matched PostToolUse hooks do not).
+- `doctor` no longer reports the Claude Code plugin as wired when only its
+  marketplace clone exists; it reads Claude Code's install record and honors
+  project-scope installs.
+
+### Documentation
+
+- README, skill and Cursor rule updated for the platform changes above,
+  including Codex's `--dangerously-bypass-hook-trust` for unattended runs and
+  Cursor running Claude Code hooks via Third-Party Imports.
+
 ## [1.0.1] - 2026-06-12
 
 ### Fixed
@@ -51,6 +88,7 @@ Initial public release.
   one-shot `install.sh` (version-pinnable) wiring a chosen platform, and
   plugin panels (`.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`).
 
-[Unreleased]: https://github.com/trouties/bashback/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/trouties/bashback/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/trouties/bashback/releases/tag/v1.1.0
 [1.0.1]: https://github.com/trouties/bashback/releases/tag/v1.0.1
 [1.0.0]: https://github.com/trouties/bashback/releases/tag/v1.0.0

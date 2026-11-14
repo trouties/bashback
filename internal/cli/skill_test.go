@@ -53,6 +53,7 @@ func TestSkillStatusFindsVersionedPlugin(t *testing.T) {
 	// plugins/cache/<marketplace>/bashback/<version>/skills/bashback/SKILL.md.
 	dest := filepath.Join(home, ".claude", "plugins", "cache", "bashback", "bashback", "1.0.1", "skills", "bashback", "SKILL.md")
 	mkdirWrite(t, dest, string(skills.BashbackSKILL))
+	writeInstalledPlugin(t, home, "user", "", filepath.Join(home, ".claude", "plugins", "cache", "bashback", "bashback", "1.0.1"))
 	st, p := skillStatus(work, home)
 	if st != "ok" || p != dest {
 		t.Fatalf("want ok at versioned plugin path %s, got %s %s", dest, st, p)

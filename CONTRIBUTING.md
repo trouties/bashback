@@ -6,10 +6,13 @@ honesty about what a content-level git snapshot can and cannot cover.
 
 ## Build & test
 
+Requires Go 1.27+ and git >= 2.32.
+
 ```sh
 go build ./cmd/bashback
-go test -race ./...        # unit + integration (needs git >= 2.32)
+go test -race ./...        # unit + integration (real git) + concurrency
 go vet ./...
+scripts/acceptance.sh      # end-to-end smoke against the built binary
 ```
 
 ## Commits

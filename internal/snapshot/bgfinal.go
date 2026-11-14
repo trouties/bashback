@@ -16,7 +16,7 @@ const bgFinalPrefix = "bgfinal_"
 // NoteBgFinalCaptured / NoteBgCompleted are the original entry's updated note
 // half-rows after a completion is observed. Both keep the "background" substring
 // so `list`'s (background) label and isBackground stay true; both make the entry
-// idempotent against repeated TaskOutput polls.
+// idempotent against repeated reads of the task's output.
 const (
 	noteBgFinalCaptured = "background (final state captured: "
 	noteBgCompleted     = "background (completed; no further writes)"
@@ -44,7 +44,7 @@ type BgFinalResult struct {
 // degraded direct-write client; callers serialize it (daemon queue / flock).
 //
 // It is idempotent: once a bgfinal entry exists or the original note records
-// completion, repeated calls (the agent polling TaskOutput) no-op. An unknown
+// completion, repeated calls (the agent re-reading the output) no-op. An unknown
 // bg task id no-ops with Matched=false (fail-open). It must run at the moment the
 // completion event fires — after the task is GC'd its writes can no longer be
 // attributed (S6 critical constraint), but the on-disk state is still captured.

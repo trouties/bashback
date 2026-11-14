@@ -69,8 +69,9 @@ type Entry struct {
 
 	// BgTaskID is the Claude Code background task id (the original Bash post's
 	// tool_response.backgroundTaskId), recorded only on backgrounded entries. It is
-	// the lookup key the later TaskOutput/TaskStop completion event uses to find
-	// this entry and append a bgfinal snapshot. Additive; `v` stays 1.
+	// the lookup key the later completion event (a Read of its output, or
+	// TaskStop) uses to find this entry and append a bgfinal snapshot. Additive;
+	// `v` stays 1.
 	BgTaskID string `json:"bg_task_id,omitempty"`
 
 	// Origin tags which agent platform produced this entry (codex|cursor).

@@ -155,6 +155,11 @@ func mergeWiringsInto(hooks map[string][]hookMatcher, exe string, wirings []expe
 		for i := range hooks[exp.Event] {
 			for j := range hooks[exp.Event][i].Hooks {
 				if strings.Contains(hooks[exp.Event][i].Hooks[j].Command, needle) {
+					// Converge the matcher too, but only on a group bashback owns
+					// alone: a shared group's matcher also scopes other hooks.
+					if len(hooks[exp.Event][i].Hooks) == 1 {
+						hooks[exp.Event][i].Matcher = exp.Matcher
+					}
 					hooks[exp.Event][i].Hooks[j].Command = cmd
 					if hooks[exp.Event][i].Hooks[j].Type == "" {
 						hooks[exp.Event][i].Hooks[j].Type = "command"

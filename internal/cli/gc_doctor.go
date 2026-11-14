@@ -257,7 +257,7 @@ func Doctor(layout paths.Layout, workdir string, args []string, stdout, stderr i
 			claudeUnreadable = true
 		}
 	}
-	if claudeFound == 0 && !claudeUnreadable && claudePluginInstalled(home) {
+	if claudeFound == 0 && !claudeUnreadable && claudePluginInstalled(home, workdir) {
 		line(true, "claude: wired via plugin")
 		for i := range claudeWiring {
 			claudeWiring[i].Status = "wired via plugin"
